@@ -13,12 +13,13 @@ python -m spacy download en_core_web_sm
 
 ## Tasks
 
-Complete the five functions in `entity_analysis.py`:
-1. `load_and_filter_corpus` — Load dataset and filter to English texts
-2. `run_ner_pipeline` — Extract entities using spaCy or Hugging Face
-3. `aggregate_entity_stats` — Compute frequency and co-occurrence statistics
-4. `visualize_entity_distribution` — Create a bar chart of top entities
-5. `generate_report` — Produce a structured entity analysis report
+Complete the six functions in `entity_analysis.py`:
+1. `load_corpus(filepath)` — Load the climate articles dataset
+2. `preprocess_corpus(df)` — Add a language-aware `processed_text` column (NFC normalization; Arabic rows pass through without crashing; raw `text` preserved for NER)
+3. `run_ner_pipeline(df, nlp)` — Filter to English and extract entities using the injected spaCy pipeline
+4. `aggregate_entity_stats(entity_df, articles_df)` — Compute top entities, label counts, co-occurrence pairs, and per-category breakdown
+5. `visualize_entity_distribution(stats, output_path)` — Create a bar chart of top entities
+6. `generate_report(stats, co_occurrence)` — Produce a structured entity analysis report string
 
 ## Submission
 

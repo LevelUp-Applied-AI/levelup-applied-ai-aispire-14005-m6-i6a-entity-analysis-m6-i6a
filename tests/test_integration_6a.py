@@ -3,12 +3,13 @@
 import pytest
 import pandas as pd
 import numpy as np
+import spacy
 import sys
 import os
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from entity_analysis import (load_and_filter_corpus, run_ner_pipeline,
+from entity_analysis import (load_corpus, preprocess_corpus, run_ner_pipeline,
                              aggregate_entity_stats,
                              visualize_entity_distribution, generate_report)
 
@@ -21,29 +22,87 @@ SAMPLE_NER_TEXT = (
 )
 
 
+@pytest.fixture(scope="module")
+def nlp():
+    return spacy.load("en_core_web_sm")
+
+
 @pytest.fixture
-def corpus():
-    data = load_and_filter_corpus(DATA_PATH)
-    assert data is not None, "load_and_filter_corpus returned None"
+def raw_corpus():
+    data = load_corpus(DATA_PATH)
+    assert data is not None, "load_corpus returned None"
     return data
 
 
-def test_corpus_loaded(corpus):
-    """Corpus loads and contains only English texts."""
-    assert len(corpus) > 0, "Corpus is empty"
+@pytest.fixture
+def corpus(raw_corpus):
+    data = preprocess_corpus(raw_corpus)
+    assert data is not None, "preprocess_corpus returned None"
+    return data
+
+
+def test_load_corpus(raw_corpus):
+    """Corpus loads with expected columns and both languages present."""
+    assert len(raw_corpus) > 0, "Corpus is empty"
     required_cols = {"id", "text", "source", "language", "category"}
-    assert required_cols.issubset(set(corpus.columns)), (
-        f"Missing columns: {required_cols - set(corpus.columns)}"
+    assert required_cols.issubset(set(raw_corpus.columns)), (
+        f"Missing columns: {required_cols - set(raw_corpus.columns)}"
     )
-    assert (corpus["language"] == "en").all(), (
-        "Corpus should contain only English texts after filtering"
+    langs = set(raw_corpus["language"].unique())
+    assert {"en", "ar"}.issubset(langs), (
+        f"Expected both 'en' and 'ar' languages, got {langs}"
     )
 
 
-def test_run_ner_pipeline_returns_dataframe():
-    """run_ner_pipeline returns a DataFrame with required columns."""
-    texts = [(1, SAMPLE_NER_TEXT)]
-    result = run_ner_pipeline(texts)
+def test_preprocess_corpus_adds_processed_text(corpus, raw_corpus):
+    """preprocess_corpus preserves rows and adds a processed_text column."""
+    assert len(corpus) == len(raw_corpus), (
+        "preprocess_corpus should not drop rows"
+    )
+    assert "processed_text" in corpus.columns, (
+        "Missing 'processed_text' column"
+    )
+    assert "text" in corpus.columns, (
+        "Original 'text' column must be preserved (NER reads raw text)"
+    )
+    # processed_text must be strings for every row (no crashes on Arabic)
+    for val in corpus["processed_text"]:
+        assert isinstance(val, str), (
+            f"processed_text must be a string for every row, got {type(val)}"
+        )
+
+
+def test_preprocess_corpus_nfc_normalized(corpus):
+    """English processed_text is NFC-normalized."""
+    import unicodedata
+    en_rows = corpus[corpus["language"] == "en"]
+    for val in en_rows["processed_text"]:
+        if val:
+            assert unicodedata.is_normalized("NFC", val), (
+                "English processed_text must be NFC-normalized"
+            )
+
+
+def test_preprocess_corpus_handles_arabic(corpus):
+    """Arabic rows survive preprocessing without error."""
+    ar_rows = corpus[corpus["language"] == "ar"]
+    if len(ar_rows) > 0:
+        # Just verify the column exists and is a string — no-crash guarantee
+        for val in ar_rows["processed_text"]:
+            assert isinstance(val, str), "Arabic processed_text must be str"
+
+
+def test_run_ner_pipeline_returns_dataframe(nlp):
+    """run_ner_pipeline returns a DataFrame with required columns and filters to English."""
+    sample_df = pd.DataFrame({
+        "id": [1, 2],
+        "text": [SAMPLE_NER_TEXT, "نص عربي لا ينبغي أن يُعالج"],
+        "source": ["test", "test"],
+        "language": ["en", "ar"],
+        "category": ["policy", "policy"],
+        "processed_text": [SAMPLE_NER_TEXT, ""],
+    })
+    result = run_ner_pipeline(sample_df, nlp)
     assert result is not None, "run_ner_pipeline returned None"
     assert isinstance(result, pd.DataFrame), "Must return a DataFrame"
     required_cols = {"text_id", "entity_text", "entity_label"}
@@ -51,35 +110,57 @@ def test_run_ner_pipeline_returns_dataframe():
         f"Missing columns: {required_cols - set(result.columns)}"
     )
     assert len(result) > 0, "No entities extracted from text with known entities"
+    # Only the English row (id=1) should have produced entities
+    assert set(result["text_id"].unique()).issubset({1}), (
+        f"Non-English rows should be filtered. Got text_ids: {set(result['text_id'].unique())}"
+    )
 
 
 def test_aggregate_entity_stats():
-    """aggregate_entity_stats returns frequency and co-occurrence data."""
+    """aggregate_entity_stats returns frequency, co-occurrence, and per-category data."""
     entity_df = pd.DataFrame({
         "text_id": [1, 1, 1, 2, 2],
         "entity_text": ["IPCC", "Jordan", "March 2024", "IPCC", "Dead Sea"],
         "entity_label": ["ORG", "GPE", "DATE", "ORG", "LOC"],
     })
-    result = aggregate_entity_stats(entity_df)
+    articles_df = pd.DataFrame({
+        "id": [1, 2],
+        "text": ["text1", "text2"],
+        "source": ["s", "s"],
+        "language": ["en", "en"],
+        "category": ["policy", "impact"],
+    })
+    result = aggregate_entity_stats(entity_df, articles_df)
     assert result is not None, "aggregate_entity_stats returned None"
     assert isinstance(result, dict), "Must return a dictionary"
-    assert "top_entities" in result, "Missing 'top_entities' key"
-    assert "label_counts" in result, "Missing 'label_counts' key"
-    assert "co_occurrence" in result, "Missing 'co_occurrence' key"
+    for key in ["top_entities", "label_counts", "co_occurrence", "per_category"]:
+        assert key in result, f"Missing '{key}' key"
 
     # top_entities should be a DataFrame
     top = result["top_entities"]
     assert isinstance(top, pd.DataFrame), "top_entities must be a DataFrame"
     assert len(top) > 0, "top_entities is empty"
 
-    # label_counts should have counts
+    # label_counts
     lc = result["label_counts"]
     assert isinstance(lc, dict), "label_counts must be a dict"
     assert lc.get("ORG", 0) == 2, f"Expected ORG count 2, got {lc.get('ORG')}"
 
-    # co_occurrence should be a DataFrame
+    # co_occurrence
     co = result["co_occurrence"]
     assert isinstance(co, pd.DataFrame), "co_occurrence must be a DataFrame"
+
+    # per_category: ORG should appear under both 'policy' (text 1) and 'impact' (text 2)
+    pc = result["per_category"]
+    assert isinstance(pc, pd.DataFrame), "per_category must be a DataFrame"
+    required_pc_cols = {"category", "entity_label", "count"}
+    assert required_pc_cols.issubset(set(pc.columns)), (
+        f"per_category missing columns: {required_pc_cols - set(pc.columns)}"
+    )
+    policy_org = pc[(pc["category"] == "policy") & (pc["entity_label"] == "ORG")]
+    assert len(policy_org) == 1 and int(policy_org["count"].iloc[0]) == 1, (
+        f"Expected policy/ORG count 1, got {policy_org.to_dict('records')}"
+    )
 
 
 def test_visualize_entity_distribution(tmp_path):
