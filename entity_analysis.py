@@ -88,7 +88,9 @@ def aggregate_entity_stats(entity_df, articles_df):
           'label_counts': dict of entity_label -> total count
           'co_occurrence': DataFrame of entity pairs appearing in the
                            same text (columns: entity_a, entity_b,
-                           co_count)
+                           co_count). Cap at top 50 pairs by co_count
+                           (or filter to co_count >= 2) so the result
+                           stays readable on the full corpus.
           'per_category': DataFrame of entity-label counts broken out
                           by article category (columns: category,
                           entity_label, count)
