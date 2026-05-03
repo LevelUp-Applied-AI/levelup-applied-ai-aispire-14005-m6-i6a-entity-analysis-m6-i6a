@@ -1,5 +1,6 @@
-spacy>=3.5
+spacy
+transformers
+torch
 pandas
-numpy
 matplotlib
-pytest
+tabulate

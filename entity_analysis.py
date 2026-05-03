@@ -1,167 +1,240 @@
 """
 Module 6 Week A — Integration: Entity Analysis Pipeline
 
-Build a corpus-level entity analysis pipeline that preprocesses
-climate articles (with language-aware handling), extracts entities,
-computes statistics, and produces visualizations.
-
-Run: python entity_analysis.py
+Run:
+python entity_analysis.py
 """
 
 import unicodedata
+from itertools import combinations
+from collections import Counter
 
 import pandas as pd
-import numpy as np
 import matplotlib.pyplot as plt
 import spacy
 
 
 def load_corpus(filepath="data/climate_articles.csv"):
-    """Load the climate articles dataset.
-
-    Args:
-        filepath: Path to the CSV file.
-
-    Returns:
-        DataFrame with columns: id, text, source, language, category.
-    """
-    # TODO: Load the CSV and return the DataFrame unchanged
-    pass
+    """Load the climate articles dataset."""
+    df = pd.read_csv(filepath)
+    return df
 
 
 def preprocess_corpus(df):
-    """Add a language-aware `processed_text` column to the corpus.
+    """Add a language-aware processed_text column."""
+    corpus = df.copy()
 
-    For every row, apply Unicode NFC normalization to `text` so that
-    visually identical characters (composed vs. decomposed diacritics)
-    compare equal downstream. The processed form preserves
-    capitalization and punctuation — those are signals NER depends on.
+    def normalize_text(text):
+        if pd.isna(text):
+            return ""
+        return unicodedata.normalize("NFC", str(text))
 
-    For Arabic rows (`language == 'ar'`), do not attempt English NLP
-    processing: either pass the NFC-normalized text through unchanged
-    or store an empty string. Either choice must not crash the
-    pipeline.
+    corpus["processed_text"] = corpus["text"].apply(normalize_text)
 
-    Args:
-        df: DataFrame returned by load_corpus.
-
-    Returns:
-        Copy of df with a new `processed_text` column. The original
-        `text` column is left intact so NER can still consume it.
-    """
-    # TODO: Copy df, apply unicodedata.normalize('NFC', t) to each
-    #       text, branch on language for English vs. Arabic handling,
-    #       write results into a new `processed_text` column
-    pass
+    return corpus
 
 
 def run_ner_pipeline(df, nlp):
-    """Run spaCy NER on the English rows of a preprocessed corpus.
+    """Run spaCy NER on English rows only."""
+    english_df = df[df["language"] == "en"].copy()
 
-    Args:
-        df: DataFrame with columns id, text, language, processed_text.
-        nlp: A loaded spaCy Language object (e.g., en_core_web_sm).
+    rows = []
 
-    Returns:
-        DataFrame with columns: text_id, entity_text, entity_label,
-        start_char, end_char.
-    """
-    # TODO: Filter df to language == 'en', process each text with nlp,
-    #       collect entities into rows, return as a DataFrame
-    pass
+    for _, row in english_df.iterrows():
+        text_id = row["id"]
+        text = row["text"]
+
+        if pd.isna(text):
+            continue
+
+        doc = nlp(str(text))
+
+        for ent in doc.ents:
+            rows.append({
+                "text_id": text_id,
+                "entity_text": ent.text,
+                "entity_label": ent.label_,
+                "start_char": ent.start_char,
+                "end_char": ent.end_char
+            })
+
+    entity_df = pd.DataFrame(
+        rows,
+        columns=["text_id", "entity_text", "entity_label", "start_char", "end_char"]
+    )
+
+    return entity_df
 
 
 def aggregate_entity_stats(entity_df, articles_df):
-    """Compute frequency, co-occurrence, and per-category statistics.
+    """Compute entity statistics."""
+    if entity_df.empty:
+        return {
+            "top_entities": pd.DataFrame(columns=["entity_text", "entity_label", "count"]),
+            "label_counts": {},
+            "co_occurrence": pd.DataFrame(columns=["entity_a", "entity_b", "co_count"]),
+            "per_category": pd.DataFrame(columns=["category", "entity_label", "count"])
+        }
 
-    Args:
-        entity_df: DataFrame with columns text_id, entity_text,
-                   entity_label.
-        articles_df: The source corpus DataFrame (with columns id,
-                     category, ...). Used to join category onto
-                     each entity for per-category aggregation.
+    top_entities = (
+        entity_df
+        .groupby(["entity_text", "entity_label"])
+        .size()
+        .reset_index(name="count")
+        .sort_values("count", ascending=False)
+        .head(20)
+    )
 
-    Returns:
-        Dictionary with keys:
-          'top_entities': DataFrame of top 20 entities by frequency
-                          (columns: entity_text, entity_label, count)
-          'label_counts': dict of entity_label -> total count
-          'co_occurrence': DataFrame of entity pairs appearing in the
-                           same text (columns: entity_a, entity_b,
-                           co_count). Cap at top 50 pairs by co_count
-                           (or filter to co_count >= 2) so the result
-                           stays readable on the full corpus.
-          'per_category': DataFrame of entity-label counts broken out
-                          by article category (columns: category,
-                          entity_label, count)
-    """
-    # TODO: Count entity frequencies (top 20), compute label totals,
-    #       build co-occurrence pairs, and join on articles_df.id to
-    #       compute per-category entity-label counts
-    pass
+    label_counts = entity_df["entity_label"].value_counts().to_dict()
+
+    pair_counter = Counter()
+
+    for text_id, group in entity_df.groupby("text_id"):
+        unique_entities = sorted(set(group["entity_text"]))
+
+        for entity_a, entity_b in combinations(unique_entities, 2):
+            pair_counter[(entity_a, entity_b)] += 1
+
+    co_rows = [
+        {
+            "entity_a": pair[0],
+            "entity_b": pair[1],
+            "co_count": count
+        }
+        for pair, count in pair_counter.items()
+    ]
+
+    co_occurrence = (
+        pd.DataFrame(co_rows)
+        .sort_values("co_count", ascending=False)
+        .head(50)
+        if co_rows
+        else pd.DataFrame(columns=["entity_a", "entity_b", "co_count"])
+    )
+
+    articles_small = articles_df[["id", "category"]].copy()
+
+    entity_with_category = entity_df.merge(
+        articles_small,
+        left_on="text_id",
+        right_on="id",
+        how="left"
+    )
+
+    per_category = (
+        entity_with_category
+        .groupby(["category", "entity_label"])
+        .size()
+        .reset_index(name="count")
+        .sort_values(["category", "count"], ascending=[True, False])
+    )
+
+    print("\nEntity statistics summary")
+    print("-------------------------")
+    print(f"Total extracted entities: {len(entity_df)}")
+    print(f"Unique entities: {entity_df['entity_text'].nunique()}")
+    print(f"Entity label counts: {label_counts}")
+    print("\nTop entities:")
+    print(top_entities.head(10))
+
+    return {
+        "top_entities": top_entities,
+        "label_counts": label_counts,
+        "co_occurrence": co_occurrence,
+        "per_category": per_category
+    }
 
 
 def visualize_entity_distribution(stats, output_path="entity_distribution.png"):
-    """Create a bar chart of the top 20 entities by frequency.
+    """Create a horizontal bar chart of top entities."""
+    top_entities = stats["top_entities"].copy()
 
-    Args:
-        stats: Dictionary from aggregate_entity_stats (must contain
-               'top_entities' DataFrame).
-        output_path: File path to save the chart.
-    """
-    # TODO: Create a horizontal bar chart of top entities, colored or
-    #       grouped by entity type, save to output_path
-    pass
+    if top_entities.empty:
+        print("No entities available to visualize.")
+        return
+
+    top_entities = top_entities.sort_values("count", ascending=True)
+
+    labels = top_entities["entity_text"] + " (" + top_entities["entity_label"] + ")"
+
+    plt.figure(figsize=(12, 8))
+    plt.barh(labels, top_entities["count"])
+    plt.xlabel("Frequency")
+    plt.ylabel("Entity")
+    plt.title("Top 20 Most Frequent Entities")
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=150)
+    plt.close()
 
 
 def generate_report(stats, co_occurrence):
-    """Generate a text summary of entity analysis findings.
+    """Generate a structured text report."""
+    label_counts = stats["label_counts"]
+    top_entities = stats["top_entities"].head(5)
 
-    Args:
-        stats: Dictionary from aggregate_entity_stats.
-        co_occurrence: Co-occurrence DataFrame from stats.
+    report_lines = []
 
-    Returns:
-        String containing a structured report with: entity counts
-        per type, top 5 most frequent entities, top 3 co-occurring
-        pairs, and a brief summary.
-    """
-    # TODO: Build a formatted report string from the statistics
-    pass
+    report_lines.append("Entity Analysis Report")
+    report_lines.append("=" * 30)
+
+    report_lines.append("\nEntity Counts by Type:")
+    for label, count in label_counts.items():
+        report_lines.append(f"- {label}: {count}")
+
+    report_lines.append("\nTop 5 Most Frequent Entities:")
+    for _, row in top_entities.iterrows():
+        report_lines.append(
+            f"- {row['entity_text']} ({row['entity_label']}): {row['count']}"
+        )
+
+    report_lines.append("\nTop 3 Co-occurring Entity Pairs:")
+    if co_occurrence is not None and not co_occurrence.empty:
+        for _, row in co_occurrence.head(3).iterrows():
+            report_lines.append(
+                f"- {row['entity_a']} + {row['entity_b']}: {row['co_count']} texts"
+            )
+    else:
+        report_lines.append("- No co-occurring pairs found.")
+
+    report_lines.append("\nSummary:")
+    report_lines.append(
+        "The entity analysis shows which people, organizations, locations, dates, "
+        "and other named entities appear most often in the climate article corpus. "
+        "Frequent entity labels help identify the main focus of the dataset, while "
+        "co-occurring entity pairs show relationships between topics, places, and "
+        "organizations. The per-category breakdown can help compare how policy, "
+        "science, impact, and adaptation articles discuss climate issues differently."
+    )
+
+    return "\n".join(report_lines)
 
 
 if __name__ == "__main__":
     nlp = spacy.load("en_core_web_sm")
 
-    # Load and preprocess the corpus
     raw = load_corpus()
-    if raw is not None:
-        corpus = preprocess_corpus(raw)
-        if corpus is not None:
-            print(f"Corpus: {len(corpus)} articles")
-            print(f"Languages: {corpus['language'].value_counts().to_dict()}")
-            print(f"Categories: {corpus['category'].value_counts().to_dict()}")
+    corpus = preprocess_corpus(raw)
 
-            # Run NER on English rows
-            entities = run_ner_pipeline(corpus, nlp)
-            if entities is not None:
-                print(f"\nExtracted {len(entities)} entities")
+    print(f"Corpus: {len(corpus)} articles")
+    print(f"Languages: {corpus['language'].value_counts().to_dict()}")
+    print(f"Categories: {corpus['category'].value_counts().to_dict()}")
 
-                # Aggregate statistics
-                stats = aggregate_entity_stats(entities, corpus)
-                if stats is not None:
-                    print(f"\nLabel counts: {stats['label_counts']}")
-                    print(f"\nTop 5 entities:")
-                    print(stats["top_entities"].head())
-                    print(f"\nPer-category counts (head):")
-                    print(stats["per_category"].head())
+    entities = run_ner_pipeline(corpus, nlp)
+    print(f"\nExtracted {len(entities)} entities")
 
-                    # Visualize
-                    visualize_entity_distribution(stats)
-                    print("\nVisualization saved to entity_distribution.png")
+    stats = aggregate_entity_stats(entities, corpus)
 
-                    # Generate report
-                    report = generate_report(stats, stats.get("co_occurrence"))
-                    if report is not None:
-                        print(f"\n{'='*50}")
-                        print(report)
+    print(f"\nLabel counts: {stats['label_counts']}")
+    print("\nTop 5 entities:")
+    print(stats["top_entities"].head())
+
+    print("\nPer-category counts:")
+    print(stats["per_category"].head())
+
+    visualize_entity_distribution(stats)
+    print("\nVisualization saved to entity_distribution.png")
+
+    report = generate_report(stats, stats["co_occurrence"])
+
+    print("\n" + "=" * 50)
+    print(report)

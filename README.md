@@ -34,4 +34,4 @@ Complete the six functions in `entity_analysis.py`:
 
 This repository is provided for educational use only. See [LICENSE](LICENSE) for terms.
 
-You may clone and modify this repository for personal learning and practice, and reference code you wrote here in your professional portfolio. Redistribution outside this course is not permitted.
+You may clone and modify this repository for personal learning and practice, and reference code you wrote here in your professional portfolio. Redistribution outside this course is not permitted
