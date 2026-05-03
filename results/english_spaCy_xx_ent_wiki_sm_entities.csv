@@ -1,0 +1,94 @@
+text_id,entity_text,entity_label,start_char,end_char
+0,IPCC,MISC,4,8
+0,Sixth Assessment Report,MISC,22,45
+0,Celsius,PER,119,126
+0,Antonio Guterres,PER,283,299
+0,COP,ORG,428,431
+1,COP28,LOC,3,8
+1,Dubai,LOC,12,17
+1,United Arab Emirates,ORG,103,123
+2,World Bank,ORG,4,14
+2,Sub-Saharan Africa,ORG,111,129
+2,South Asia,LOC,134,144
+2,World Bank,ORG,276,286
+2,Ajay Banga,PER,297,307
+3,Jordan,PER,0,6
+3,National Climate Change Policy,ORG,9,39
+3,Ministry of Environment,ORG,270,293
+3,UNDP,ORG,339,343
+3,European Union,ORG,352,366
+4,UNFCCC,ORG,0,6
+4,Simon Stiell,PER,27,39
+4,Bonn Climate Change Conference,ORG,67,97
+4,Paris Agreement,ORG,191,206
+4,NDCs,MISC,269,273
+5,European Union,ORG,4,18
+5,Carbon Border Adjustment Mechanism,MISC,21,55
+5,EU,ORG,275,277
+6,United Nations General Assembly,ORG,23,54
+6,Climate Ambition Summit,MISC,66,89
+6,New York,LOC,93,101
+6,Paris Agreement,ORG,362,377
+7,FAO,ORG,0,3
+7,State of Food and Agriculture,ORG,18,47
+7,FAO,ORG,296,299
+7,Qu Dongyu,PER,317,326
+8,Green Climate Fund,ORG,4,22
+8,Songdo,LOC,109,115
+8,South Korea,LOC,117,128
+8,Bangladesh,LOC,201,211
+8,Congo Basin,LOC,259,270
+8,Jordan,LOC,316,322
+9,China's,MISC,0,7
+9,Xie Zhenhua,PER,41,52
+9,US Climate Envoy,ORG,62,78
+9,John Kerry,PER,79,89
+9,Sunnylands,LOC,93,103
+9,California,LOC,105,115
+9,Paris Agreement,ORG,225,240
+9,COP28,MISC,395,400
+10,NASA,ORG,15,19
+10,Goddard Institute for Space Studies,ORG,22,57
+10,Celsius,PER,156,163
+10,El Nino,LOC,198,205
+10,Southern Europe,LOC,311,326
+10,North Africa,LOC,328,340
+10,Middle East,LOC,350,361
+11,Science,MISC,21,28
+11,Greenland Ice Sheet,ORG,60,79
+11,GRACE,MISC,213,218
+11,GRACE-FO,MISC,223,231
+12,Arctic,LOC,4,10
+12,National Snow and,ORG,103,120
+12,Boulder,LOC,140,147
+12,Colorado,LOC,149,157
+12,Arctic,LOC,194,200
+13,Great Barrier Reef Foundation,LOC,25,54
+13,Celsius,PER,176,183
+13,surveyed,LOC,266,274
+14,Max Planck Institute for Meteorology,ORG,16,52
+14,Nature Geoscience,MISC,75,92
+14,Atlantic Meridional Overturning Circulation,ORG,110,153
+14,AMOC,ORG,204,208
+14,North Atlantic,LOC,255,269
+14,Northern Europe,LOC,326,341
+14,US East Coast,ORG,412,425
+15,CO2,MISC,12,15
+15,Mauna Loa Observatory,LOC,38,59
+15,Hawaii,LOC,63,69
+15,NOAA,ORG,128,132
+16,University of Leeds,ORG,21,40
+16,Geophysical Research Letters,ORG,220,248
+16,Himalayan,PER,301,310
+17,World Meteorological Organization,ORG,4,37
+17,WMO,ORG,317,320
+17,Celeste Saulo,PER,339,352
+18,Proceedings of the National Academy of Sciences,MISC,15,62
+18,Siberia,LOC,93,100
+18,Alaska,LOC,105,111
+18,CO2,MISC,157,160
+19,Potsdam Institute for Climate Impact Research,ORG,18,63
+19,Greenland Ice Sheet,ORG,217,236
+19,West Antarctic Ice Sheet,ORG,242,266
+19,Atlantic Meridional Overturning Circulation,ORG,321,364
+19,Science,MISC,393,400
